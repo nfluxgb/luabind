@@ -76,5 +76,6 @@ Example output:
 ```
 in init. got: 1
 henry has arrived
+announce got 1
 in shutdown
 ```
