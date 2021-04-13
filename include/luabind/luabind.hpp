@@ -6,3 +6,4 @@
 #include "method_callback.hpp"
 #include "register_lib.hpp"
 #include "callback_dispatcher.hpp"
+#include "table_mapper.hpp"

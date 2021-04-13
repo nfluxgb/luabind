@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lua_fwd.hpp"
+#include "table_mapper.hpp"
 #include <string>
 #include <tuple>
 
@@ -20,18 +21,10 @@ T get_parameter(lua_State* L, std::size_t n, typename std::enable_if<!U::value>:
 	return (T) get_string_parameter(L, n);
 }
 
-int set_number_return(lua_State* L, double value);
-int set_string_return(lua_State* L, std::string value);
-
-template<typename T, typename U = std::is_arithmetic<T>>
-int push_return_value(lua_State* L, T t, typename std::enable_if<U::value>::type* = 0) {
-	return set_number_return(L, (double) t);
-}
-
-template<typename T, typename U = std::is_arithmetic<T>>
-int push_return_value(lua_State* L, T t, typename std::enable_if<!U::value>::type* = 0, ...) {
-	return set_string_return(L, (std::string) t);
-}
+int push_return_value(lua_State* L, double value);
+int push_return_value(lua_State* L, std::string value);
+int push_return_value(lua_State* L, container_mapper_ptr p);
+int push_return_value(lua_State* L, object_mapper_ptr p);
 
 template<typename Md, typename Tuple>
 typename Md::tuple_type handle_callback_impl(lua_State* L, Tuple in, std::tuple<> out)

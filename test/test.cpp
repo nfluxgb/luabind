@@ -9,7 +9,13 @@ typedef std::tuple<INIT_PLUGIN, SHUTDOWN_PLUGIN> lua_methods;
 // LUA -> HOST
 DEFINE_METHOD(PRINT_MESSAGE, "print_message", void, std::string);
 DEFINE_METHOD(ANNOUNCE, "announce", int, std::string);
-typedef std::tuple<PRINT_MESSAGE, ANNOUNCE> host_methods;
+DEFINE_METHOD(GET_OBJECT, "get_object", luabind::object_mapper_ptr, int);
+DEFINE_METHOD(GET_ALL_OBJECTS, "get_all_objects", luabind::container_mapper_ptr);
+typedef std::tuple<PRINT_MESSAGE, ANNOUNCE, GET_OBJECT, GET_ALL_OBJECTS> host_methods;
+
+void print(std::string const& msg) {
+	std::cout << msg << std::endl;
+}
 
 struct myobject {
 public:
@@ -17,34 +23,58 @@ public:
 		: name(name)
 	{}
 
+	auto to_tuple() {
+		return std::make_tuple(
+			std::make_pair("name", name));
+	}
+
 	std::string name;
 };
-
-void print(std::string const& msg) {
-	std::cout << msg << std::endl;
-}
 
 int announce(myobject const& obj) {
 	std::cout << obj.name << " has arrived" << std::endl; 
 	return 1;
 }
 
+class test_data {
+public:
+	test_data() {
+		objects_.push_back(myobject("test"));
+	}
+
+	myobject get_object(int id) {
+		return objects_.back();
+	}
+
+	std::vector<myobject> get_objects() {
+		return objects_;
+	}
+private:
+	std::vector<myobject> objects_;
+};
+
 int main(int argc, char* argv[]) {
 	try {
+		lua_State* L = luaL_newstate();
+		luaL_openlibs(L);
 
-	lua_State* L = luaL_newstate();
-	luaL_openlibs(L);
+		test_data td;
 
-	luabind::callback_dispatcher dispatcher;
-	dispatcher.bind_callback<PRINT_MESSAGE>(print);
-	dispatcher.bind_construct_callback<ANNOUNCE, myobject>(announce);
+		luabind::callback_dispatcher dispatcher;
+		dispatcher.bind_callback<PRINT_MESSAGE>(print);
+		dispatcher.bind_callback<GET_OBJECT>([&](int id) {
+			return luabind::map_object<1>(td.get_object(id), {"name"});
+		});
+		dispatcher.bind_callback<GET_ALL_OBJECTS>([&]() {
+			return luabind::map_container<1>(td.get_objects(), {"name"});
+		});
+		dispatcher.bind_construct_callback<ANNOUNCE, myobject>(announce);
 
-	luabind::register_lib<luabind::callback_dispatcher>(L, "mylib", host_methods());
+		luabind::register_lib<luabind::callback_dispatcher>(L, "mylib", host_methods());
 
-	luaL_dofile(L, "test.lua");
-	luabind::call_typed_method<INIT_PLUGIN>(L, 1);
-	luabind::call_typed_method<SHUTDOWN_PLUGIN>(L);
-
+		luaL_dofile(L, "test.lua");
+		luabind::call_typed_method<INIT_PLUGIN>(L, 1);
+		luabind::call_typed_method<SHUTDOWN_PLUGIN>(L);
 	}
 	catch(std::exception const& ex) {
 		std::cerr << ex.what() << "\n";
