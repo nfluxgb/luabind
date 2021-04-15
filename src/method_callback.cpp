@@ -32,6 +32,11 @@ int push_return_value(lua_State* L, object_mapper_ptr p) {
 	(*p)(L);
 	return 1;
 }
+
+int push_return_value(lua_State* L, array_mapper_ptr p) {
+	(*p)(L);
+	return 1;
+}
 	
 }
 }

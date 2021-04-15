@@ -76,6 +76,51 @@ public:
 	NamesT names_;
 };
 
+class array_mapper_base {
+public:
+	virtual ~array_mapper_base() {}
+	virtual void operator()(lua_State* L) = 0;
+};
+
+template<typename TupT>
+class array_mapper : public array_mapper_base {
+public:
+	typedef TupT tuple_type;
+public:
+	explicit array_mapper(TupT tuple = TupT())
+		: tuple_(tuple)
+	{}
+
+	void operator()() {}
+
+	template<typename T, typename... Args>
+	void operator()(T head, Args... tail) {
+		push_argument(L_, head.first);
+		push_argument(L_, head.second);
+		lua_settable(L_, -3);
+		(this->operator())(tail...);
+	}
+
+	void operator()(lua_State* L) override {
+		L_ = L;
+		lua_newtable(L_);
+		std::apply(*this, tuple_);
+	}
+
+	tuple_type tuple_;
+	lua_State* L_;
+};
+
+template<int N, typename ArrT, typename TupT, typename S = std::tuple_size<ArrT>>
+auto to_tuple(ArrT arr, TupT tuple, typename std::enable_if<S::value == N>::type* = 0) {
+	return tuple;
+}
+
+template<int N, typename ArrT, typename TupT, typename S = std::tuple_size<ArrT>>
+auto to_tuple(ArrT arr, TupT tuple, typename std::enable_if<S::value != N>::type* = 0) {
+	return to_tuple<N+1>(arr, std::tuple_cat(tuple, std::make_tuple(std::make_pair(N, std::get<N>(arr)))));
+}
+
 }
 
 typedef std::shared_ptr<detail::object_mapper_base> object_mapper_ptr;
@@ -90,6 +135,14 @@ typedef std::shared_ptr<detail::container_mapper_base> container_mapper_ptr;
 template<int N, typename ContT>
 container_mapper_ptr map_container(ContT cont, std::array<std::string, N> names) {
 	return std::make_shared<detail::container_mapper<ContT, decltype(names)>>(cont, names);
+}
+
+typedef std::shared_ptr<detail::array_mapper_base> array_mapper_ptr;
+
+template<int N, typename T>
+array_mapper_ptr map_array(std::array<T, N> obj) {
+	auto tup = detail::to_tuple<0>(obj, std::tuple<>());
+	return std::make_shared<detail::array_mapper<decltype(tup)>>(tup);
 }
 
 }

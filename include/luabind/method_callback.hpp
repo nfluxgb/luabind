@@ -25,6 +25,7 @@ int push_return_value(lua_State* L, double value);
 int push_return_value(lua_State* L, std::string value);
 int push_return_value(lua_State* L, container_mapper_ptr p);
 int push_return_value(lua_State* L, object_mapper_ptr p);
+int push_return_value(lua_State* L, array_mapper_ptr p);
 
 template<typename Md, typename Tuple>
 typename Md::tuple_type handle_callback_impl(lua_State* L, Tuple in, std::tuple<> out)

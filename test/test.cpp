@@ -11,7 +11,8 @@ DEFINE_METHOD(PRINT_MESSAGE, "print_message", void, std::string);
 DEFINE_METHOD(ANNOUNCE, "announce", int, std::string);
 DEFINE_METHOD(GET_OBJECT, "get_object", luabind::object_mapper_ptr, int);
 DEFINE_METHOD(GET_ALL_OBJECTS, "get_all_objects", luabind::container_mapper_ptr);
-typedef std::tuple<PRINT_MESSAGE, ANNOUNCE, GET_OBJECT, GET_ALL_OBJECTS> host_methods;
+DEFINE_METHOD(GET_ALL_NUMBERS, "get_all_numbers", luabind::array_mapper_ptr);
+typedef std::tuple<PRINT_MESSAGE, ANNOUNCE, GET_OBJECT, GET_ALL_OBJECTS, GET_ALL_NUMBERS> host_methods;
 
 void print(std::string const& msg) {
 	std::cout << msg << std::endl;
@@ -49,6 +50,10 @@ public:
 	std::vector<myobject> get_objects() {
 		return objects_;
 	}
+
+	std::array<int, 32> get_numbers() {
+		return std::array<int, 32>();
+	}
 private:
 	std::vector<myobject> objects_;
 };
@@ -67,6 +72,9 @@ int main(int argc, char* argv[]) {
 		});
 		dispatcher.bind_callback<GET_ALL_OBJECTS>([&]() {
 			return luabind::map_container<1>(td.get_objects(), {"name"});
+		});
+		dispatcher.bind_callback<GET_ALL_NUMBERS>([&]() {
+			return luabind::map_array<32>(td.get_numbers());
 		});
 		dispatcher.bind_construct_callback<ANNOUNCE, myobject>(announce);
 
