@@ -53,6 +53,17 @@ public:
 	virtual void operator()(lua_State* L) = 0;
 };
 
+template<typename T, typename S = std::is_convertible<T, nullptr_t>>
+auto to_tuple(T obj, typename std::enable_if<S::value>::type* = 0) {
+	return obj->to_tuple();
+}
+
+template<typename T, typename S = std::is_convertible<T, nullptr_t>>
+auto to_tuple(T obj, typename std::enable_if<!S::value>::type* = 0) {
+	return obj.to_tuple();
+}
+
+
 template<typename ContT, typename NamesT>
 class container_mapper : public container_mapper_base {
 public:
@@ -65,7 +76,7 @@ public:
 		lua_createtable(L, 0, container_.size());
 		for(auto it = std::begin(container_); it != std::end(container_); ++it) {
 			push_argument(L, std::distance(std::begin(container_), it));
-			auto tup = it->to_tuple();
+			auto tup = to_tuple(*it);
 			object_mapper<decltype(tup)> mapper(names_, tup);
 			mapper(L);
 			lua_settable(L, -3);
