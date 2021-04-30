@@ -6,53 +6,21 @@
 #include <type_traits>
 
 namespace luabind {
-namespace detail {
+namespace {
 
-void push_number_parameter(lua_State* L, double value);
-void push_string_parameter(lua_State* L, std::string value);
+struct call_helper {
+public:
+	call_helper(lua_State* L)
+		: L_(L)
+	{}
 
-template<typename T, typename U = std::is_arithmetic<T>>
-void push_argument(lua_State* L, T t, typename std::enable_if<U::value>::type* = 0) {
-	push_number_parameter(L, (double) t);
-}
+	lua_State* L_;
+};
 
-template<typename T, typename U = std::is_arithmetic<T>>
-void push_argument(lua_State* L, T t, typename std::enable_if<!U::value>::type* = 0) {
-	push_string_parameter(L, (std::string) t);
-}
-
-inline void push_arguments(lua_State* L) {}
-
-template<typename T, typename... Args>
-void push_arguments(lua_State* L, T arg, Args... args) {
-	push_argument(L, arg);
-	push_arguments(L, args...);
-}
-
-double get_number_return(lua_State* L);
-std::string get_string_return(lua_State* L);
-
-template<typename T, typename U = std::is_arithmetic<T>>
-T get_return_impl(lua_State* L, typename std::enable_if<U::value>::type* = 0) {
-	return (T) get_number_return(L);
-}
-
-template<typename T, typename U = std::is_arithmetic<T>>
-T get_return_impl(lua_State* L, typename std::enable_if<!U::value>::type* = 0) {
-	return (T) get_string_return(L);
-}
-
-void push_name(lua_State* L, char const* fn);
-void call_impl(lua_State* L, std::size_t args, std::size_t returns);
-
-template<typename Md, typename U = std::is_void<typename Md::result_type>>
-typename Md::result_type get_return(lua_State* L, typename std::enable_if<!U::value>::type* = 0) {
-	return detail::get_return_impl<typename Md::result_type>(L);
-}
-
-template<typename Md, typename U = std::is_void<typename Md::result_type>>
-typename Md::result_type get_return(lua_State* L, typename std::enable_if<U::value>::type* = 0) {
-	return;
+template<typename T>
+call_helper& operator&(call_helper& helper, T obj) {
+	detail::push_value(helper.L_, obj);
+	return helper;
 }
 
 }
@@ -60,18 +28,27 @@ typename Md::result_type get_return(lua_State* L, typename std::enable_if<U::val
 template<typename Md, typename... Args>
 typename Md::result_type call_typed_method(lua_State* L, Args... args) {
 	detail::push_name(L, Md::name());
-	detail::push_arguments(L, args...);
-	detail::call_impl(L, std::tuple_size<std::tuple<Args...>>::value,
-		std::is_same<typename Md::result_type, void>::value ? 0 : 1);
-	return detail::get_return<Md>(L);
+	call_helper h(L);
+	auto _ = (h & ... & args);
+	constexpr bool has_return = !std::is_void<typename Md::result_type>::value;
+	detail::call_impl(L, std::tuple_size<std::tuple<Args...>>::value, has_return ? 1 : 0);
+	if constexpr(has_return) {
+		return get_parameter(L, 1, std::declval<typename Md::result_type>());
+	}
 }
 
 template<typename Md, typename... Args>
 typename Md::result_type call_named_method(lua_State* L, std::string fn, Args... args) {
+	typename Md::result_type ret;
 	detail::push_name(L, fn.c_str());
-	detail::push_arguments(L, args...);
-	detail::call_impl(L, std::tuple_size<std::tuple<Args...>>::value, std::is_same<typename Md::result_type, void>::value ? 0 : 1);
-	return detail::get_return<Md>(L);
+	call_helper h(L);
+	(h & ... & args);
+	constexpr bool has_return = !std::is_void<typename Md::result_type>::value;
+	detail::call_impl(L, std::tuple_size<std::tuple<Args...>>::value, has_return ? 1 : 0);
+	if constexpr(has_return) {
+		ret = get_parameter(L, 1, std::declval<typename Md::result_type>());
+	}
+	return ret;
 }
 
 }

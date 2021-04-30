@@ -5,6 +5,7 @@
 #include <memory>
 #include <stdexcept>
 #include <typeindex>
+#include <iostream>
 
 namespace luabind {
 

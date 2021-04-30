@@ -9,9 +9,9 @@ typedef std::tuple<INIT_PLUGIN, SHUTDOWN_PLUGIN> lua_methods;
 // LUA -> HOST
 DEFINE_METHOD(PRINT_MESSAGE, "print_message", void, std::string);
 DEFINE_METHOD(ANNOUNCE, "announce", int, std::string);
-DEFINE_METHOD(GET_OBJECT, "get_object", luabind::object_mapper_ptr, int);
-DEFINE_METHOD(GET_ALL_OBJECTS, "get_all_objects", luabind::container_mapper_ptr);
-DEFINE_METHOD(GET_ALL_NUMBERS, "get_all_numbers", luabind::array_mapper_ptr);
+DEFINE_METHOD(GET_OBJECT, "get_object", luabind::key_value_store, int);
+DEFINE_METHOD(GET_ALL_OBJECTS, "get_all_objects", luabind::key_value_store);
+DEFINE_METHOD(GET_ALL_NUMBERS, "get_all_numbers", luabind::key_value_store);
 typedef std::tuple<PRINT_MESSAGE, ANNOUNCE, GET_OBJECT, GET_ALL_OBJECTS, GET_ALL_NUMBERS> host_methods;
 
 void print(std::string const& msg) {
@@ -20,13 +20,15 @@ void print(std::string const& msg) {
 
 struct myobject {
 public:
+	myobject() {}
+
 	myobject(std::string name)
 		: name(name)
 	{}
 
-	auto to_tuple() {
-		return std::make_tuple(
-			std::make_pair("name", name));
+	template<typename Ar>
+	void to_archive(Ar& ar) {
+		ar & std::make_pair("name", std::ref(name));
 	}
 
 	std::string name;
@@ -40,14 +42,14 @@ int announce(myobject const& obj) {
 class test_data {
 public:
 	test_data() {
-		objects_.push_back(myobject("test"));
+		objects_.push_back(std::make_shared<myobject>("test"));
 	}
 
 	myobject get_object(int id) {
-		return objects_.back();
+		return *objects_.back();
 	}
 
-	std::vector<myobject> get_objects() {
+	std::vector<std::shared_ptr<myobject>> get_objects() {
 		return objects_;
 	}
 
@@ -55,7 +57,7 @@ public:
 		return std::array<int, 32>();
 	}
 private:
-	std::vector<myobject> objects_;
+	std::vector<std::shared_ptr<myobject>> objects_;
 };
 
 int main(int argc, char* argv[]) {
@@ -68,13 +70,13 @@ int main(int argc, char* argv[]) {
 		luabind::callback_dispatcher dispatcher;
 		dispatcher.bind_callback<PRINT_MESSAGE>(print);
 		dispatcher.bind_callback<GET_OBJECT>([&](int id) {
-			return luabind::map_object<1>(td.get_object(id), {"name"});
+			return luabind::map_object(td.get_object(id), {"name"});
 		});
 		dispatcher.bind_callback<GET_ALL_OBJECTS>([&]() {
-			return luabind::map_container<1>(td.get_objects(), {"name"});
+			return luabind::map_container(td.get_objects(), {"name"});
 		});
 		dispatcher.bind_callback<GET_ALL_NUMBERS>([&]() {
-			return luabind::map_array<32>(td.get_numbers());
+			return luabind::map_array(td.get_numbers());
 		});
 		dispatcher.bind_construct_callback<ANNOUNCE, myobject>(announce);
 
